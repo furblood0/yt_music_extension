@@ -20,8 +20,27 @@ exports.handler = async (event) => {
       };
     }
 
-    // Parse request body
-    const { songs } = JSON.parse(event.body);
+    // Check if body exists and parse it safely
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Request body is required' })
+      };
+    }
+
+    // Parse request body safely
+    let songs;
+    try {
+      const body = JSON.parse(event.body);
+      songs = body.songs;
+    } catch (parseError) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
     
     if (!songs || !Array.isArray(songs)) {
       return {
