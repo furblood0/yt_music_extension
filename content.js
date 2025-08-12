@@ -56,7 +56,21 @@ class YouTubeMusicScraper {
             await this.scrapeSongs();
             
             // Sanatçı bazlı sınıflandırma yap
-            const classifications = this.classifyByArtist();
+            const artistClassifications = this.classifyByArtist();
+            
+            // Genre bazlı sınıflandırma yap
+            const genreClassifications = await this.classifyByGenre();
+            
+            // Tüm sınıflandırmaları birleştir
+            const classifications = {
+                byArtist: artistClassifications.byArtist,
+                byGenre: genreClassifications.byGenre,
+                totalSongs: this.songs.length,
+                totalArtists: artistClassifications.totalArtists,
+                totalGenres: genreClassifications.totalGenres,
+                artistList: artistClassifications.artistList,
+                genreList: genreClassifications.genreList
+            };
             
             return {
                 success: true,
@@ -511,13 +525,96 @@ class YouTubeMusicScraper {
             sortedArtistGroups[artist] = artistGroups[artist];
         });
 
+            return {
+        byArtist: sortedArtistGroups,
+        totalSongs: totalSongs,
+        totalArtists: totalArtists,
+        artistList: sortedArtists
+    };
+}
+
+async classifyByGenre() {
+    try {
+        // Netlify function'a şarkıları gönder
+        const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/spotify-genre', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                songs: this.songs.map(song => ({
+                    title: song.title,
+                    artist: song.artist
+                }))
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.results || !Array.isArray(data.results)) {
+            throw new Error('Invalid response format');
+        }
+
+        // Genre'lere göre grupla
+        const genreGroups = {};
+        let totalGenres = 0;
+
+        data.results.forEach(song => {
+            const genre = song.genre || 'Unknown';
+            
+            if (!genreGroups[genre]) {
+                genreGroups[genre] = [];
+                totalGenres++;
+            }
+            
+            // Orijinal şarkı bilgilerini bul
+            const originalSong = this.songs.find(s => 
+                s.title === song.title && s.artist === song.artist
+            );
+            
+            if (originalSong) {
+                genreGroups[genre].push({
+                    title: originalSong.title,
+                    artist: originalSong.artist,
+                    duration: originalSong.duration,
+                    videoId: originalSong.videoId,
+                    thumbnailUrl: originalSong.thumbnailUrl,
+                    timestamp: originalSong.timestamp
+                });
+            }
+        });
+
+        // Genre'leri alfabetik sırala
+        const sortedGenres = Object.keys(genreGroups).sort((a, b) => {
+            return a.localeCompare(b, 'en', { sensitivity: 'base' });
+        });
+
+        // Sıralanmış genre gruplarını oluştur
+        const sortedGenreGroups = {};
+        sortedGenres.forEach(genre => {
+            sortedGenreGroups[genre] = genreGroups[genre];
+        });
+
         return {
-            byArtist: sortedArtistGroups,
-            totalSongs: totalSongs,
-            totalArtists: totalArtists,
-            artistList: sortedArtists
+            byGenre: sortedGenreGroups,
+            totalGenres: totalGenres,
+            genreList: sortedGenres
+        };
+
+    } catch (error) {
+        console.error('Genre sınıflandırma hatası:', error);
+        return {
+            byGenre: {},
+            totalGenres: 0,
+            genreList: [],
+            error: error.message
         };
     }
+}
 }
 
 // Content script başlat
