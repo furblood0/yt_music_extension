@@ -1,6 +1,7 @@
 class YouTubeMusicOrganizer {
     constructor() {
         this.songs = [];
+        this.classifications = null;
         this.currentPlaylistUrl = '';
         this.isProcessing = false;
         this.loadingSteps = [
@@ -147,6 +148,7 @@ class YouTubeMusicOrganizer {
 
             if (response.success) {
                 this.songs = response.songs;
+                this.classifications = response.classifications || null;
                 this.updateLoadingProgress(100);
                 this.updateLoadingDetails('Tamamlandı!');
                 
@@ -208,6 +210,7 @@ class YouTubeMusicOrganizer {
             totalSongs: this.songs.length,
             totalArtists: this.getUniqueArtistsCount(),
             songs: this.songs,
+            classifications: this.classifications || null,
             exportDate: new Date().toISOString()
         };
 

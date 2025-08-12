@@ -55,11 +55,15 @@ class YouTubeMusicScraper {
             // Şarkıları çek
             await this.scrapeSongs();
             
+            // Sanatçı bazlı sınıflandırma yap
+            const classifications = this.classifyByArtist();
+            
             return {
                 success: true,
                 songs: this.songs,
                 count: this.songs.length,
-                playlistUrl: playlistUrl
+                playlistUrl: playlistUrl,
+                classifications: classifications
             };
 
         } catch (error) {
@@ -468,6 +472,51 @@ class YouTubeMusicScraper {
 
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    classifyByArtist() {
+        const artistGroups = {};
+        let totalSongs = 0;
+        let totalArtists = 0;
+
+        // Şarkıları sanatçıya göre grupla
+        this.songs.forEach(song => {
+            const artist = song.artist || 'Bilinmeyen Sanatçı';
+            
+            if (!artistGroups[artist]) {
+                artistGroups[artist] = [];
+                totalArtists++;
+            }
+            
+            artistGroups[artist].push({
+                title: song.title,
+                duration: song.duration,
+                videoId: song.videoId,
+                thumbnailUrl: song.thumbnailUrl,
+                timestamp: song.timestamp
+            });
+            
+            totalSongs++;
+        });
+
+        // Sanatçıları alfabetik sırala
+        const sortedArtists = Object.keys(artistGroups).sort((a, b) => {
+            // Türkçe karakterleri dikkate alarak sırala
+            return a.localeCompare(b, 'tr', { sensitivity: 'base' });
+        });
+
+        // Sıralanmış sanatçı gruplarını oluştur
+        const sortedArtistGroups = {};
+        sortedArtists.forEach(artist => {
+            sortedArtistGroups[artist] = artistGroups[artist];
+        });
+
+        return {
+            byArtist: sortedArtistGroups,
+            totalSongs: totalSongs,
+            totalArtists: totalArtists,
+            artistList: sortedArtists
+        };
     }
 }
 
