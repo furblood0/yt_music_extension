@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Music Organizer</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 YouTube Music Organizer</h1>
+            <p>Oynatma listelerindeki şarkıları organize et</p>
+        </div>
+        
+        <div class="playlist-input">
+            <div class="input-group">
+                <label for="playlistUrl">Oynatma Listesi URL'si:</label>
+                <input type="url" id="playlistUrl" placeholder="https://music.youtube.com/playlist?list=..." />
+                <small class="help-text">YouTube Music oynatma listesi URL'sini yapıştırın</small>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="fetchSongs" class="btn btn-primary">
+                <span class="btn-icon">📥</span>
+                Şarkıları Getir
+            </button>
+            <button id="exportData" class="btn btn-secondary" disabled>
+                <span class="btn-icon">📤</span>
+                JSON Olarak Dışa Aktar
+            </button>
+        </div>
+        
+        <div class="stats hidden" id="stats">
+            <div class="stat-item">
+                <span class="stat-label">Toplam Şarkı</span>
+                <span class="stat-value" id="totalSongs">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Sanatçı Sayısı</span>
+                <span class="stat-value" id="totalArtists">0</span>
+            </div>
+        </div>
+        
+        <div class="status">
+            <div id="loading" class="loading hidden">
+                <div class="loading-spinner">
+                    <div class="spinner"></div>
+                </div>
+                <div class="loading-text" id="loadingText">Şarkılar getiriliyor...</div>
+                <div class="loading-progress">
+                    <div class="loading-progress-bar" id="loadingProgress"></div>
+                </div>
+                <div class="loading-details" id="loadingDetails">Sayfa yükleniyor...</div>
+            </div>
+            <div id="status" class="status-text"></div>
+        </div>
+        
+        <div class="footer">
+            <p>YouTube Music'te herhangi bir oynatma listesinde olabilirsiniz</p>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html> 
