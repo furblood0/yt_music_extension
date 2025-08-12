@@ -1,11 +1,12 @@
 const https = require('https');
 
 exports.handler = async (event) => {
-  // CORS headers
+  // CORS headers - daha kapsamlı
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Max-Age': '86400'
   };
 
   // Handle preflight request
@@ -149,7 +150,8 @@ async function detectLanguage(text, apiKey) {
         'Content-Type': 'application/json',
         'Authorization': `Api-Key ${apiKey}`,
         'Content-Length': Buffer.byteLength(detectData)
-      }
+      },
+      timeout: 5000 // 5 saniye timeout
     };
 
     const req = https.request(options, (res) => {
@@ -186,7 +188,14 @@ async function detectLanguage(text, apiKey) {
     });
 
     req.on('error', (error) => {
+      console.error('Request error:', error);
       reject(error);
+    });
+
+    req.on('timeout', () => {
+      console.error('Request timeout for:', text);
+      req.destroy();
+      reject(new Error('Request timeout'));
     });
 
     req.write(detectData);
@@ -210,7 +219,8 @@ async function detectLanguageFallback(text, apiKey) {
           text: text,
           lang: 'tr' // Try to translate to Turkish
         }))
-      }
+      },
+      timeout: 5000 // 5 saniye timeout
     };
 
     const req = https.request(options, (res) => {
@@ -239,7 +249,15 @@ async function detectLanguageFallback(text, apiKey) {
     });
 
     req.on('error', (error) => {
+      console.error('Fallback request error:', error);
       // Default to English if request fails
+      resolve('en');
+    });
+
+    req.on('timeout', () => {
+      console.error('Fallback request timeout for:', text);
+      req.destroy();
+      // Default to English if timeout
       resolve('en');
     });
 
