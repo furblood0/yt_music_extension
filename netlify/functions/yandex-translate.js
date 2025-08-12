@@ -189,7 +189,7 @@ async function detectLanguage(text, apiKey) {
       reject(error);
     });
 
-    req.write(postData);
+    req.write(detectData);
     req.end();
   });
 }
