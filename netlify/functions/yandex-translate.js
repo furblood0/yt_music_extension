@@ -135,10 +135,9 @@ exports.handler = async (event) => {
 // Function to detect language using Yandex Translate API
 async function detectLanguage(text, apiKey) {
   return new Promise((resolve, reject) => {
-    // Prepare the request data
-    const postData = JSON.stringify({
-      text: text,
-      lang: 'tr' // We'll try to translate to Turkish first
+    // First, try to detect the language
+    const detectData = JSON.stringify({
+      text: text
     });
 
     const options = {
@@ -149,7 +148,7 @@ async function detectLanguage(text, apiKey) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Api-Key ${apiKey}`,
-        'Content-Length': Buffer.byteLength(postData)
+        'Content-Length': Buffer.byteLength(detectData)
       }
     };
 
@@ -164,11 +163,15 @@ async function detectLanguage(text, apiKey) {
         try {
           const response = JSON.parse(data);
           
-          if (response.code === 200) {
-            // If translation is successful, it's likely Turkish
-            resolve('tr');
+          if (response.code === 200 && response.lang) {
+            // Check if detected language is Turkish
+            if (response.lang === 'tr') {
+              resolve('tr');
+            } else {
+              resolve('en'); // Default to English for non-Turkish
+            }
           } else {
-            // Try to detect language
+            // If detection fails, try fallback method
             detectLanguageFallback(text, apiKey)
               .then(resolve)
               .catch(reject);
@@ -194,16 +197,19 @@ async function detectLanguage(text, apiKey) {
 // Fallback method to detect language
 async function detectLanguageFallback(text, apiKey) {
   return new Promise((resolve, reject) => {
-    // Try to detect language using Yandex Translate API
+    // Try to detect language using Yandex Translate API with different approach
     const options = {
       hostname: 'translate.yandex.net',
       port: 443,
-      path: '/api/v1.5/tr.json/detect',
+      path: '/api/v1.5/tr.json/translate',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Api-Key ${apiKey}`,
-        'Content-Length': Buffer.byteLength(JSON.stringify({ text: text }))
+        'Content-Length': Buffer.byteLength(JSON.stringify({ 
+          text: text,
+          lang: 'tr' // Try to translate to Turkish
+        }))
       }
     };
 
@@ -218,15 +224,11 @@ async function detectLanguageFallback(text, apiKey) {
         try {
           const response = JSON.parse(data);
           
-          if (response.code === 200 && response.lang) {
-            // If we get a language code, check if it's Turkish
-            if (response.lang === 'tr') {
-              resolve('tr');
-            } else {
-              resolve('en'); // Default to English for non-Turkish
-            }
+          if (response.code === 200) {
+            // If translation to Turkish is successful, it's likely Turkish
+            resolve('tr');
           } else {
-            // Default to English if detection fails
+            // Default to English if translation fails
             resolve('en');
           }
         } catch (error) {
