@@ -29,13 +29,9 @@ class YouTubeMusicOrganizer {
             this.exportData();
         });
 
-        // Öğrenme sistemi butonları
+        // Geri bildirim butonu
         document.getElementById('showFeedbackForm').addEventListener('click', () => {
             this.showFeedbackModal();
-        });
-
-        document.getElementById('viewLearningStats').addEventListener('click', () => {
-            this.viewLearningStats();
         });
 
         // Modal butonları
@@ -364,42 +360,19 @@ class YouTubeMusicOrganizer {
 
         allSongs.forEach((song, index) => {
             const currentLanguage = this.classifications.byLanguage.Turkish?.some(s => s.title === song.title && s.artist === song.artist) ? 'Turkish' : 'Other';
-            const confidence = song.confidence || 'low';
-            const turkishScore = song.turkishScore || 0;
-            const patterns = song.patterns || [];
             
             const songItem = document.createElement('div');
             songItem.className = 'feedback-song-item';
             songItem.innerHTML = `
-                <div class="song-info">
-                    <div class="song-title">${song.title}</div>
-                    <div class="song-artist">${song.artist}</div>
-                </div>
-                <div class="song-detection">
-                    <span class="detection-label">Detector'ın Tahmini:</span>
-                    <span class="detection-result">${currentLanguage}</span>
-                    <span class="detection-label">Güven:</span>
-                    <span class="detection-result ${confidence === 'high' ? 'high-confidence' : confidence === 'medium' ? 'medium-confidence' : 'low-confidence'}">${confidence}</span>
-                    <span class="detection-label">Puan:</span>
-                    <span class="detection-result">${turkishScore}</span>
-                </div>
-                ${patterns.length > 0 ? `
-                <div class="song-patterns">
-                    <span class="detection-label">Pattern'lar:</span>
-                    <div class="pattern-tags">
-                        ${patterns.slice(0, 3).map(pattern => `<span class="pattern-tag">${pattern}</span>`).join('')}
-                        ${patterns.length > 3 ? `<span class="pattern-tag">+${patterns.length - 3} daha</span>` : ''}
-                    </div>
-                </div>
-                ` : ''}
+                <div class="song-title">${song.title}</div>
                 <div class="language-options">
                     <div class="language-option">
                         <input type="radio" id="turkish_${index}" name="language_${index}" value="Turkish" ${currentLanguage === 'Turkish' ? 'checked' : ''}>
-                        <label for="turkish_${index}">🇹🇷 Turkish</label>
+                        <label for="turkish_${index}">🇹🇷 Türkçe</label>
                     </div>
                     <div class="language-option">
                         <input type="radio" id="other_${index}" name="language_${index}" value="Other" ${currentLanguage === 'Other' ? 'checked' : ''}>
-                        <label for="other_${index}">🌍 Other</label>
+                        <label for="other_${index}">🌍 Diğer</label>
                     </div>
                 </div>
             `;
@@ -415,15 +388,18 @@ class YouTubeMusicOrganizer {
 
             songItems.forEach((item, index) => {
                 const title = item.querySelector('.song-title').textContent;
-                const artist = item.querySelector('.song-artist').textContent;
                 const selectedLanguage = item.querySelector(`input[name="language_${index}"]:checked`).value;
                 
+                // Sanatçı bilgisini classifications'dan bul
+                const songInfo = this.findSongInfo(title);
+                if (!songInfo) return; // Şarkı bulunamadıysa atla
+                
                 // Sadece değişen şarkıları ekle
-                const currentLanguage = this.classifications.byLanguage.Turkish?.some(s => s.title === title && s.artist === artist) ? 'Turkish' : 'Other';
+                const currentLanguage = this.classifications.byLanguage.Turkish?.some(s => s.title === title && s.artist === songInfo.artist) ? 'Turkish' : 'Other';
                 
                 if (selectedLanguage !== currentLanguage) {
                     feedbackData.push({
-                        song: { title, artist },
+                        song: { title, artist: songInfo.artist },
                         correctClassification: selectedLanguage,
                         userClassification: currentLanguage
                     });
@@ -610,14 +586,51 @@ class YouTubeMusicOrganizer {
 
     updateLearningStats(stats) {
         // Öğrenme istatistiklerini güncelle
-        document.getElementById('totalCorrections').textContent = stats.totalCorrections;
-        document.getElementById('learnedWords').textContent = stats.learnedWords;
-        document.getElementById('learnedArtists').textContent = stats.learnedArtists;
+        document.getElementById('totalCorrections').textContent = stats.totalCorrections || 0;
+        document.getElementById('learnedWords').textContent = stats.learnedWords || 0;
+        document.getElementById('learnedArtists').textContent = stats.learnedArtists || 0;
+        
+        // Son güncelleme zamanını göster
+        if (stats.lastUpdated) {
+            const lastUpdated = new Date(stats.lastUpdated);
+            const now = new Date();
+            const diffInMinutes = Math.floor((now - lastUpdated) / (1000 * 60));
+            
+            let timeText;
+            if (diffInMinutes < 1) {
+                timeText = 'Az önce';
+            } else if (diffInMinutes < 60) {
+                timeText = `${diffInMinutes} dk önce`;
+            } else if (diffInMinutes < 1440) {
+                const hours = Math.floor(diffInMinutes / 60);
+                timeText = `${hours} saat önce`;
+            } else {
+                const days = Math.floor(diffInMinutes / 1440);
+                timeText = `${days} gün önce`;
+            }
+            
+            document.getElementById('lastUpdated').textContent = timeText;
+        } else {
+            document.getElementById('lastUpdated').textContent = '-';
+        }
     }
 
     showLearningSection() {
-        // Öğrenme bölümünü göster
+        // Geri bildirim bölümünü göster
         document.getElementById('learningSection').classList.remove('hidden');
+    }
+
+    // Şarkı bilgisini classifications'dan bul
+    findSongInfo(title) {
+        // Önce Turkish listesinde ara
+        const turkishSong = this.classifications.byLanguage.Turkish?.find(s => s.title === title);
+        if (turkishSong) return turkishSong;
+        
+        // Sonra Other listesinde ara
+        const otherSong = this.classifications.byLanguage.Other?.find(s => s.title === title);
+        if (otherSong) return otherSong;
+        
+        return null; // Şarkı bulunamadı
     }
 }
 

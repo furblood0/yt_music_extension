@@ -44,26 +44,10 @@
         </div>
         
         <div class="learning-section hidden" id="learningSection">
-            <h3>🧠 Akıllı Öğrenme Sistemi</h3>
-            <div class="learning-stats">
-                <div class="stat-item">
-                    <span class="stat-label">Toplam Düzeltme</span>
-                    <span class="stat-value" id="totalCorrections">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Öğrenilen Kelime</span>
-                    <span class="stat-value" id="learnedWords">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Öğrenilen Sanatçı</span>
-                    <span class="stat-value" id="learnedArtists">0</span>
-                </div>
-            </div>
             <div class="feedback-section">
                 <p>Yanlış sınıflandırılan şarkılar için geri bildirim verin:</p>
                 <div class="feedback-buttons">
                     <button id="showFeedbackForm" class="btn btn-small">📝 Geri Bildirim Ver</button>
-                    <button id="viewLearningStats" class="btn btn-small">📊 Öğrenme İstatistikleri</button>
                 </div>
             </div>
         </div>
@@ -76,10 +60,9 @@
                     <button id="closeFeedbackModal" class="close-btn">×</button>
                 </div>
                 <div class="modal-body">
-                    <p class="modal-description">
-                        Aşağıdaki şarkıların dil sınıflandırmasını kontrol edin ve yanlış olanları düzeltin.
-                        Sistem bu düzeltmelerden öğrenecek ve gelecekte daha iyi sınıflandırma yapacak.
-                    </p>
+                                    <p class="modal-description">
+                    Şarkıların dilini kontrol edin ve yanlış olanları düzeltin.
+                </p>
                     <div id="feedbackSongList" class="feedback-song-list">
                         <!-- Şarkılar buraya dinamik olarak eklenecek -->
                     </div>

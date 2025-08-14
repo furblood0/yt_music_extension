@@ -1,24 +1,30 @@
 // Smart Language Learning System
 // Bu sistem kullanıcı geri bildirimlerinden öğrenir ve sürekli iyileşir
 
-// Öğrenme verilerini saklayacak basit bir "veritabanı"
-let learningData = {
+const fs = require('fs');
+const path = require('path');
+
+// JSON dosya yolu
+const DATA_FILE_PATH = path.join(__dirname, 'learning-data.json');
+
+// Varsayılan öğrenme verileri
+const defaultLearningData = {
   // Kullanıcı düzeltmeleri
   corrections: [],
   // Öğrenilen kelimeler
   learnedWords: {
-    turkish: new Set(),
-    foreign: new Set()
+    turkish: [],
+    foreign: []
   },
   // Öğrenilen sanatçılar
   learnedArtists: {
-    turkish: new Set(),
-    foreign: new Set()
+    turkish: [],
+    foreign: []
   },
   // Pattern'lar
   patterns: {
-    turkish: new Set(),
-    foreign: new Set()
+    turkish: [],
+    foreign: []
   },
   // Puanlama ağırlıkları (öğrenme ile değişir)
   weights: {
@@ -34,8 +40,66 @@ let learningData = {
     medium: 60,
     low: 30,
     turkish: 50
-  }
+  },
+  // Son güncelleme zamanı
+  lastUpdated: new Date().toISOString()
 };
+
+// JSON dosyasından veri yükle
+function loadLearningData() {
+  try {
+    if (fs.existsSync(DATA_FILE_PATH)) {
+      const data = fs.readFileSync(DATA_FILE_PATH, 'utf8');
+      const loadedData = JSON.parse(data);
+      
+      // Set'leri geri yükle
+      loadedData.learnedWords.turkish = new Set(loadedData.learnedWords.turkish);
+      loadedData.learnedWords.foreign = new Set(loadedData.learnedWords.foreign);
+      loadedData.learnedArtists.turkish = new Set(loadedData.learnedArtists.turkish);
+      loadedData.learnedArtists.foreign = new Set(loadedData.learnedArtists.foreign);
+      loadedData.patterns.turkish = new Set(loadedData.patterns.turkish);
+      loadedData.patterns.foreign = new Set(loadedData.patterns.foreign);
+      
+      return loadedData;
+    }
+  } catch (error) {
+    console.error('Öğrenme verisi yüklenirken hata:', error);
+  }
+  
+  // Dosya yoksa veya hata varsa varsayılan veriyi döndür
+  return JSON.parse(JSON.stringify(defaultLearningData));
+}
+
+// JSON dosyasına veri kaydet
+function saveLearningData(data) {
+  try {
+    // Set'leri array'e çevir
+    const dataToSave = {
+      ...data,
+      learnedWords: {
+        turkish: Array.from(data.learnedWords.turkish),
+        foreign: Array.from(data.learnedWords.foreign)
+      },
+      learnedArtists: {
+        turkish: Array.from(data.learnedArtists.turkish),
+        foreign: Array.from(data.learnedArtists.foreign)
+      },
+      patterns: {
+        turkish: Array.from(data.patterns.turkish),
+        foreign: Array.from(data.patterns.foreign)
+      },
+      lastUpdated: new Date().toISOString()
+    };
+    
+    fs.writeFileSync(DATA_FILE_PATH, JSON.stringify(dataToSave, null, 2));
+    console.log('Öğrenme verisi kaydedildi:', DATA_FILE_PATH);
+  } catch (error) {
+    console.error('Öğrenme verisi kaydedilirken hata:', error);
+  }
+}
+
+// Öğrenme verilerini yükle
+let learningData = loadLearningData();
 
 // Ana handler fonksiyonu
 exports.handler = async (event) => {
@@ -227,6 +291,9 @@ async function learnFromCorrection(correction) {
 
   // Eşikleri dinamik olarak ayarla
   adjustThresholds();
+
+  // Değişiklikleri JSON dosyasına kaydet
+  saveLearningData(learningData);
 }
 
 // Akıllı dil tespiti
@@ -406,7 +473,8 @@ async function getLearningStats(headers) {
         foreign: Array.from(learningData.patterns.foreign)
       },
       weights: learningData.weights,
-      thresholds: learningData.thresholds
+      thresholds: learningData.thresholds,
+      lastUpdated: learningData.lastUpdated
     })
   };
 }
