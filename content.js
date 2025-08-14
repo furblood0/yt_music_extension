@@ -626,16 +626,19 @@ async classifyByGenre() {
 async classifyByLanguage() {
     try {
         // Netlify function'a şarkıları gönder
-        const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/yandex-translate', {
+        const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                songs: this.songs.map(song => ({
-                    title: song.title,
-                    artist: song.artist
-                }))
+                action: 'detect',
+                data: {
+                    songs: this.songs.map(song => ({
+                        title: song.title,
+                        artist: song.artist
+                    }))
+                }
             })
         });
 
@@ -661,6 +664,9 @@ async classifyByLanguage() {
         data.results.forEach(song => {
             const isTurkish = song.isTurkish;
             const language = isTurkish ? 'Turkish' : 'Other';
+            const confidence = song.confidence || 'medium';
+            const turkishScore = song.turkishScore || 0;
+            const patterns = song.patterns || [];
             
             if (isTurkish) {
                 totalTurkish++;
@@ -680,9 +686,20 @@ async classifyByLanguage() {
                     duration: originalSong.duration,
                     videoId: originalSong.videoId,
                     thumbnailUrl: originalSong.thumbnailUrl,
-                    timestamp: originalSong.timestamp
+                    timestamp: originalSong.timestamp,
+                    confidence: confidence,
+                    turkishScore: turkishScore,
+                    patterns: patterns
                 });
             }
+        });
+
+        // Sonuçları güven seviyesine göre sırala (yüksek güvenilirlik önce)
+        Object.keys(languageGroups).forEach(lang => {
+            languageGroups[lang].sort((a, b) => {
+                const confidenceOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+                return confidenceOrder[b.confidence] - confidenceOrder[a.confidence];
+            });
         });
 
         return {
@@ -690,81 +707,37 @@ async classifyByLanguage() {
             totalTurkish: totalTurkish,
             totalOther: totalOther,
             totalLanguages: 2,
-            languageList: ['Turkish', 'Other']
+            languageList: ['Turkish', 'Other'],
+            learningStats: data.learningStats || null
         };
 
     } catch (error) {
         console.error('Dil sınıflandırma hatası:', error);
         
-        // Hata durumunda basit yöntemi kullan
-        return this.classifyByLanguageFallback();
+        // Hata durumunda basit fallback
+        return {
+            byLanguage: {
+                'Turkish': [],
+                'Other': this.songs.map(song => ({
+                    title: song.title,
+                    artist: song.artist,
+                    duration: song.duration,
+                    videoId: song.videoId,
+                    thumbnailUrl: song.thumbnailUrl,
+                    timestamp: song.timestamp,
+                    confidence: 'low',
+                    turkishScore: 0
+                }))
+            },
+            totalTurkish: 0,
+            totalOther: this.songs.length,
+            totalLanguages: 2,
+            languageList: ['Turkish', 'Other']
+        };
     }
 }
 
-classifyByLanguageFallback() {
-    // Türkçe göstergeleri (basit yöntem)
-    const turkishIndicators = {
-        characters: ['ç', 'ğ', 'ı', 'ö', 'ş', 'ü', 'Ç', 'Ğ', 'I', 'Ö', 'Ş', 'Ü'],
-        words: ['aşk', 'güzel', 'kalp', 'hayat', 'dünya', 'sevgi', 'mutlu', 'hüzün', 'göz', 'yüz', 'el', 'ay', 'güneş', 'yıldız', 'deniz', 'dağ', 'orman', 'çiçek', 'kuş', 'bebek', 'anne', 'baba', 'kardeş', 'arkadaş', 'okul', 'ev', 'yol', 'araba', 'kitap', 'müzik', 'şarkı', 'dans', 'oyun', 'gül', 'ağla', 'gülümse', 'koş', 'yürü', 'otur', 'kalk', 'gel', 'git', 'bak', 'dinle', 'konuş', 'yaz', 'oku', 'çal', 'söyle', 'düşün', 'hisset', 'sev', 'nefret et', 'umut', 'hayal', 'rüya', 'gerçek', 'yalan', 'doğru', 'yanlış', 'iyi', 'kötü', 'büyük', 'küçük', 'uzun', 'kısa', 'yeni', 'eski', 'genç', 'yaşlı', 'güçlü', 'zayıf', 'hızlı', 'yavaş', 'sıcak', 'soğuk', 'sert', 'yumuşak', 'açık', 'kapalı', 'temiz', 'kirli', 'güzel', 'çirkin', 'mutlu', 'üzgün', 'neşeli', 'hüzünlü', 'sakin', 'heyecanlı', 'sessiz', 'gürültülü', 'parlak', 'karanlık', 'renkli', 'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'kahverengi', 'gri'],
-        artists: ['tarkan', 'sezen aksu', 'hande yener', 'sertab erener', 'ajda pekkan', 'barış manço', 'cem karaca', 'erkin koray', 'fazıl say', 'gökhan türkmen', 'hakan altun', 'ibrahim tatlıses', 'kenan doğulu', 'leyla gencer', 'müzeyyen senar', 'neşet ertaş', 'orhan gencebay', 'özcan deniz', 'pamela', 'rafet el roman', 'sibel can', 'şebnem ferah', 'türkü', 'yeni türkü', 'zara', 'ziynet sali', 'özgün', 'özdemir erdoğan', 'ümit yaşar oğuzcan', 'şanar yurdatapan', 'şevval sam', 'şirin soysal', 'şükrü türen', 'şükrü özyıldız', 'şükrü aydın', 'şükrü öztürk', 'şükrü yıldırım', 'şükrü çelik', 'şükrü demir', 'şükrü kaya', 'şükrü özkan', 'şükrü yılmaz', 'şükrü arslan', 'şükrü özçelik', 'şükrü özkan', 'şükrü yıldırım', 'şükrü çelik', 'şükrü demir', 'şükrü kaya', 'şükrü özkan', 'şükrü yılmaz', 'şükrü arslan', 'şükrü özçelik']
-    };
 
-    const languageGroups = {
-        'Turkish': [],
-        'Other': []
-    };
-
-    let totalTurkish = 0;
-    let totalOther = 0;
-
-    this.songs.forEach(song => {
-        const title = song.title.toLowerCase();
-        const artist = song.artist.toLowerCase();
-        
-        // Türkçe karakter kontrolü
-        const hasTurkishChars = turkishIndicators.characters.some(char => 
-            title.includes(char) || artist.includes(char)
-        );
-        
-        // Türkçe kelime kontrolü
-        const hasTurkishWords = turkishIndicators.words.some(word => 
-            title.includes(word) || artist.includes(word)
-        );
-        
-        // Türkçe sanatçı kontrolü
-        const isTurkishArtist = turkishIndicators.artists.some(turkishArtist => 
-            artist.includes(turkishArtist)
-        );
-        
-        // Dil sınıflandırması
-        const isTurkish = hasTurkishChars || hasTurkishWords || isTurkishArtist;
-        const language = isTurkish ? 'Turkish' : 'Other';
-        
-        if (isTurkish) {
-            totalTurkish++;
-        } else {
-            totalOther++;
-        }
-        
-        // Şarkıyı ilgili gruba ekle
-        languageGroups[language].push({
-            title: song.title,
-            artist: song.artist,
-            duration: song.duration,
-            videoId: song.videoId,
-            thumbnailUrl: song.thumbnailUrl,
-            timestamp: song.timestamp
-        });
-    });
-
-    return {
-        byLanguage: languageGroups,
-        totalTurkish: totalTurkish,
-        totalOther: totalOther,
-        totalLanguages: 2,
-        languageList: ['Turkish', 'Other']
-    };
-}
 }
 
 // Content script başlat

@@ -7,8 +7,10 @@ YouTube Music'teki herhangi bir oynatma listesindeki şarkıları sanatçıları
 - 🎯 **Herhangi Bir Oynatma Listesi**: Beğeni listesi veya herhangi bir oynatma listesinden şarkıları çeker
 - 🔗 **URL Desteği**: Oynatma listesi URL'sini yapıştırarak veya mevcut sayfayı kullanarak çalışır
 - 👨‍🎤 **Sanatçı Bazlı Organizasyon**: Şarkıları sanatçılarına göre gruplar
+- 🎵 **Genre Bazlı Sınıflandırma**: Spotify API ile şarkıları müzik türlerine göre kategorize eder
+- 🌍 **Dil Bazlı Sınıflandırma**: Gelişmiş algoritma ile Türkçe/yabancı şarkı ayrımı yapar
 - 🔍 **Arama ve Filtreleme**: Sanatçı adına göre arama yapabilme
-- 📊 **İstatistikler**: Toplam şarkı ve sanatçı sayısı
+- 📊 **Detaylı İstatistikler**: Toplam şarkı, sanatçı, genre ve dil istatistikleri
 - 📤 **JSON Export**: Verileri temiz JSON formatında dışa aktarma
 - 🎨 **Modern UI**: Güzel ve kullanıcı dostu arayüz
 - ⚡ **Hızlı İşlem**: Optimize edilmiş performans
@@ -46,24 +48,73 @@ YouTube Music'teki herhangi bir oynatma listesindeki şarkıları sanatçıları
 
 ### Sonraki Adımlar
 - **Organize edin**: Şarkılar sanatçılarına göre gruplandırılacak
+- **Genre Sınıflandırması**: Spotify API ile müzik türlerine göre kategorize edilir
+- **Dil Sınıflandırması**: Gelişmiş algoritma ile Türkçe/yabancı şarkı ayrımı yapılır
 - **Arayın**: Sanatçı adına göre arama yapın
+- **İstatistikleri İnceleyin**: Dil, genre ve sanatçı bazlı detaylı istatistikler
 - **JSON Export**: "JSON Olarak Dışa Aktar" butonu ile verileri indirin
+
+### 📊 **Dil Sınıflandırma Örnekleri**
+
+#### 🇹🇷 **Türkçe Şarkı Tespiti**
+- **"Aşk"** - Tarkan → Yüksek güvenilirlik (Türkçe kelime + Türk sanatçı)
+- **"Güzel"** - Sezen Aksu → Yüksek güvenilirlik (Türkçe kelime + Türk sanatçı)
+- **"Çiçekler"** - Bilinmeyen Sanatçı → Orta güvenilirlik (Türkçe karakter + kelime)
+
+#### 🌍 **Yabancı Şarkı Tespiti**
+- **"Love"** - Ed Sheeran → Düşük güvenilirlik (İngilizce kelime)
+- **"Beautiful"** - Christina Aguilera → Düşük güvenilirlik (İngilizce kelime)
+- **"Heart"** - Adele → Düşük güvenilirlik (İngilizce kelime)
+
+#### 🎯 **Güven Seviyesi Açıklaması**
+- **High (80+ puan)**: Kesin Türkçe şarkı
+- **Medium (40-79 puan)**: Muhtemelen Türkçe şarkı
+- **Low (20-39 puan)**: Şüpheli, manuel kontrol gerekebilir
 
 ## 🛠️ Teknik Detaylar
 
 ### Dosya Yapısı
 
 ```
-yt_music/
-├── manifest.json          # Extension konfigürasyonu
-├── popup.html            # Ana popup arayüzü
-├── popup.css             # Stil dosyası
-├── popup.js              # Popup JavaScript
-├── content.js            # YouTube Music sayfasında çalışan script
-├── background.js         # Background service worker
-├── icons/                # Extension iconları
-└── README.md             # Bu dosya
+yt_music_extension/
+├── manifest.json                    # Extension konfigürasyonu
+├── popup.html                      # Ana popup arayüzü
+├── popup.css                       # Stil dosyası
+├── popup.js                        # Popup JavaScript
+├── content.js                      # YouTube Music sayfasında çalışan script
+├── background.js                   # Background service worker
+├── icons/                          # Extension iconları
+├── netlify/                        # Netlify Functions
+│   ├── functions/
+│   │   ├── spotify-genre.js       # Spotify Genre API
+│   │   └── local-language-detector.js    # Yerel dil tespit sistemi
+└── README.md                       # Bu dosya
 ```
+
+### Dil Sınıflandırma Sistemi
+
+Extension, şarkıların dilini tespit etmek için gelişmiş bir algoritma kullanır:
+
+#### 🔍 **Yerel Dil Tespit Sistemi**
+1. **Gelişmiş Türkçe Algoritması**: Karakter, kelime ve sanatçı adı analizi
+2. **Karakter Bazlı Analiz**: Türkçe karakterlerin frekans analizi
+3. **Kelime Bazlı Analiz**: Türkçe kelime kalıplarının tespiti
+4. **Sanatçı Adı Analizi**: Bilinen Türk sanatçıların tespiti
+5. **Puanlama Sistemi**: Çoklu kriter bazlı güvenilirlik skoru
+
+#### 📊 **Güven Seviyesi Sistemi**
+- **High**: %80+ güvenilirlik (Türkçe karakterler + kelimeler + sanatçı)
+- **Medium**: %40-79 güvenilirlik (Türkçe karakterler veya kelimeler)
+- **Low**: %20-39 güvenilirlik (Sınırlı Türkçe göstergeler)
+
+#### 🎯 **Türkçe Tespit Kriterleri**
+- **Karakterler**: ç, ğ, ı, ö, ş, ü (ağırlık: 10 puan)
+- **Kelime Kalıpları**: aşk, güzel, kalp, hayat, dünya vb. (ağırlık: 50 puan)
+- **Sanatçı Adları**: Tarkan, Sezen Aksu, Barış Manço vb. (ağırlık: 50 puan)
+- **Uzunluk Bonusu**: Uzun Türkçe başlıklar için ek puan (ağırlık: 10 puan)
+
+#### 🔄 **Fallback Sistemi**
+Ana algoritma başarısız olursa otomatik olarak basit fallback algoritması devreye girer.
 
 ### Teknolojiler
 

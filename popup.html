@@ -43,6 +43,54 @@
             </div>
         </div>
         
+        <div class="learning-section hidden" id="learningSection">
+            <h3>🧠 Akıllı Öğrenme Sistemi</h3>
+            <div class="learning-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Toplam Düzeltme</span>
+                    <span class="stat-value" id="totalCorrections">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Öğrenilen Kelime</span>
+                    <span class="stat-value" id="learnedWords">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Öğrenilen Sanatçı</span>
+                    <span class="stat-value" id="learnedArtists">0</span>
+                </div>
+            </div>
+            <div class="feedback-section">
+                <p>Yanlış sınıflandırılan şarkılar için geri bildirim verin:</p>
+                <div class="feedback-buttons">
+                    <button id="showFeedbackForm" class="btn btn-small">📝 Geri Bildirim Ver</button>
+                    <button id="viewLearningStats" class="btn btn-small">📊 Öğrenme İstatistikleri</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Geri Bildirim Modal -->
+        <div id="feedbackModal" class="feedback-modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>📝 Şarkı Dil Düzeltmeleri</h3>
+                    <button id="closeFeedbackModal" class="close-btn">×</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-description">
+                        Aşağıdaki şarkıların dil sınıflandırmasını kontrol edin ve yanlış olanları düzeltin.
+                        Sistem bu düzeltmelerden öğrenecek ve gelecekte daha iyi sınıflandırma yapacak.
+                    </p>
+                    <div id="feedbackSongList" class="feedback-song-list">
+                        <!-- Şarkılar buraya dinamik olarak eklenecek -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="saveFeedback" class="btn btn-primary">💾 Düzeltmeleri Kaydet ve Öğret</button>
+                    <button id="cancelFeedback" class="btn btn-secondary">❌ İptal</button>
+                </div>
+            </div>
+        </div>
+        
         <div class="status">
             <div id="loading" class="loading hidden">
                 <div class="loading-spinner">

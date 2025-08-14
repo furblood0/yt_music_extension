@@ -29,6 +29,28 @@ class YouTubeMusicOrganizer {
             this.exportData();
         });
 
+        // Öğrenme sistemi butonları
+        document.getElementById('showFeedbackForm').addEventListener('click', () => {
+            this.showFeedbackModal();
+        });
+
+        document.getElementById('viewLearningStats').addEventListener('click', () => {
+            this.viewLearningStats();
+        });
+
+        // Modal butonları
+        document.getElementById('closeFeedbackModal').addEventListener('click', () => {
+            this.hideFeedbackModal();
+        });
+
+        document.getElementById('cancelFeedback').addEventListener('click', () => {
+            this.hideFeedbackModal();
+        });
+
+        document.getElementById('saveFeedback').addEventListener('click', () => {
+            this.saveFeedbackData();
+        });
+
         // URL input değişikliğini dinle
         document.getElementById('playlistUrl').addEventListener('input', (e) => {
             this.currentPlaylistUrl = e.target.value;
@@ -180,6 +202,14 @@ class YouTubeMusicOrganizer {
         stats.classList.remove('hidden');
         exportBtn.disabled = false;
         
+        // Öğrenme bölümünü göster
+        this.showLearningSection();
+        
+        // Öğrenme istatistiklerini güncelle
+        if (this.classifications && this.classifications.learningStats) {
+            this.updateLearningStats(this.classifications.learningStats);
+        }
+        
         // Stats animasyonu ekle
         this.animateStats();
     }
@@ -300,6 +330,294 @@ class YouTubeMusicOrganizer {
 
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 🧠 Öğrenme Sistemi Metodları
+    showFeedbackModal() {
+        if (!this.songs || this.songs.length === 0) {
+            this.showStatus('Önce şarkıları çekmelisiniz!', 'error');
+            return;
+        }
+
+        if (!this.classifications || !this.classifications.byLanguage) {
+            this.showStatus('Dil sınıflandırması henüz yapılmamış!', 'error');
+            return;
+        }
+
+        this.populateFeedbackModal();
+        document.getElementById('feedbackModal').classList.remove('hidden');
+    }
+
+    hideFeedbackModal() {
+        document.getElementById('feedbackModal').classList.add('hidden');
+    }
+
+    populateFeedbackModal() {
+        const songListContainer = document.getElementById('feedbackSongList');
+        songListContainer.innerHTML = '';
+
+        // Tüm şarkıları birleştir
+        const allSongs = [
+            ...(this.classifications.byLanguage.Turkish || []),
+            ...(this.classifications.byLanguage.Other || [])
+        ];
+
+        allSongs.forEach((song, index) => {
+            const currentLanguage = this.classifications.byLanguage.Turkish?.some(s => s.title === song.title && s.artist === song.artist) ? 'Turkish' : 'Other';
+            const confidence = song.confidence || 'low';
+            const turkishScore = song.turkishScore || 0;
+            const patterns = song.patterns || [];
+            
+            const songItem = document.createElement('div');
+            songItem.className = 'feedback-song-item';
+            songItem.innerHTML = `
+                <div class="song-info">
+                    <div class="song-title">${song.title}</div>
+                    <div class="song-artist">${song.artist}</div>
+                </div>
+                <div class="song-detection">
+                    <span class="detection-label">Detector'ın Tahmini:</span>
+                    <span class="detection-result">${currentLanguage}</span>
+                    <span class="detection-label">Güven:</span>
+                    <span class="detection-result ${confidence === 'high' ? 'high-confidence' : confidence === 'medium' ? 'medium-confidence' : 'low-confidence'}">${confidence}</span>
+                    <span class="detection-label">Puan:</span>
+                    <span class="detection-result">${turkishScore}</span>
+                </div>
+                ${patterns.length > 0 ? `
+                <div class="song-patterns">
+                    <span class="detection-label">Pattern'lar:</span>
+                    <div class="pattern-tags">
+                        ${patterns.slice(0, 3).map(pattern => `<span class="pattern-tag">${pattern}</span>`).join('')}
+                        ${patterns.length > 3 ? `<span class="pattern-tag">+${patterns.length - 3} daha</span>` : ''}
+                    </div>
+                </div>
+                ` : ''}
+                <div class="language-options">
+                    <div class="language-option">
+                        <input type="radio" id="turkish_${index}" name="language_${index}" value="Turkish" ${currentLanguage === 'Turkish' ? 'checked' : ''}>
+                        <label for="turkish_${index}">🇹🇷 Turkish</label>
+                    </div>
+                    <div class="language-option">
+                        <input type="radio" id="other_${index}" name="language_${index}" value="Other" ${currentLanguage === 'Other' ? 'checked' : ''}>
+                        <label for="other_${index}">🌍 Other</label>
+                    </div>
+                </div>
+            `;
+            
+            songListContainer.appendChild(songItem);
+        });
+    }
+
+    async saveFeedbackData() {
+        try {
+            const songItems = document.querySelectorAll('.feedback-song-item');
+            const feedbackData = [];
+
+            songItems.forEach((item, index) => {
+                const title = item.querySelector('.song-title').textContent;
+                const artist = item.querySelector('.song-artist').textContent;
+                const selectedLanguage = item.querySelector(`input[name="language_${index}"]:checked`).value;
+                
+                // Sadece değişen şarkıları ekle
+                const currentLanguage = this.classifications.byLanguage.Turkish?.some(s => s.title === title && s.artist === artist) ? 'Turkish' : 'Other';
+                
+                if (selectedLanguage !== currentLanguage) {
+                    feedbackData.push({
+                        song: { title, artist },
+                        correctClassification: selectedLanguage,
+                        userClassification: currentLanguage
+                    });
+                }
+            });
+
+            if (feedbackData.length === 0) {
+                this.showStatus('Hiçbir değişiklik yapılmadı!', 'info');
+                this.hideFeedbackModal();
+                return;
+            }
+
+            // Her feedback'i gönder
+            for (const feedback of feedbackData) {
+                await this.submitFeedback(feedback);
+            }
+
+            this.showStatus(`${feedbackData.length} düzeltme kaydedildi! Sistem öğrendi. 🧠`, 'success');
+            this.hideFeedbackModal();
+            
+            // İstatistikleri güncelle
+            this.updateLearningStatsFromResponse();
+            
+        } catch (error) {
+            console.error('Feedback kaydetme hatası:', error);
+            this.showStatus('Düzeltmeler kaydedilemedi.', 'error');
+        }
+    }
+
+    async submitFeedback(feedback) {
+        try {
+            const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'feedback',
+                    data: feedback
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Feedback gönderilemedi');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Feedback hatası:', error);
+            throw error;
+        }
+    }
+
+    async updateLearningStatsFromResponse() {
+        try {
+            const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'getStats'
+                })
+            });
+
+            if (response.ok) {
+                const stats = await response.json();
+                this.updateLearningStats(stats);
+            }
+        } catch (error) {
+            console.error('İstatistik güncelleme hatası:', error);
+        }
+    }
+
+    async viewLearningStats() {
+        try {
+            const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'getStats'
+                })
+            });
+
+            if (response.ok) {
+                const stats = await response.json();
+                this.showLearningStatsModal(stats);
+            } else {
+                throw new Error('İstatistikler alınamadı');
+            }
+        } catch (error) {
+            console.error('İstatistik hatası:', error);
+            this.showStatus('Öğrenme istatistikleri alınamadı.', 'error');
+        }
+    }
+
+    showLearningStatsModal(stats) {
+        const modal = document.createElement('div');
+        modal.className = 'learning-stats-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>🧠 Öğrenme İstatistikleri</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Toplam Düzeltme</span>
+                        <span class="stat-value">${stats.totalCorrections}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Öğrenilen Kelime</span>
+                        <span class="stat-value">${stats.learnedWords.turkish.length + stats.learnedWords.foreign.length}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Öğrenilen Sanatçı</span>
+                        <span class="stat-value">${stats.learnedArtists.turkish.length + stats.learnedArtists.foreign.length}</span>
+                    </div>
+                </div>
+                <div class="weights-section">
+                    <h4>📊 Dinamik Ağırlıklar</h4>
+                    <div class="weight-item">
+                        <span>Karakter:</span> <span>${stats.weights.character}</span>
+                    </div>
+                    <div class="weight-item">
+                        <span>Kelime:</span> <span>${stats.weights.word}</span>
+                    </div>
+                    <div class="weight-item">
+                        <span>Sanatçı:</span> <span>${stats.weights.artist}</span>
+                    </div>
+                    <div class="weight-item">
+                        <span>Pattern:</span> <span>${stats.weights.pattern}</span>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="this.parentElement.parentElement.remove()">Kapat</button>
+            </div>
+        `;
+
+        // Modal stillerini ekle
+        const style = document.createElement('style');
+        style.textContent = `
+            .learning-stats-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+            }
+            .modal-content {
+                background: white;
+                padding: 30px;
+                border-radius: 16px;
+                max-width: 500px;
+                width: 90%;
+                text-align: center;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            }
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 20px;
+                margin: 20px 0;
+            }
+            .weights-section {
+                margin: 20px 0;
+                padding: 20px;
+                background: #f8f9fa;
+                border-radius: 12px;
+            }
+            .weight-item {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid #dee2e6;
+            }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(modal);
+    }
+
+    updateLearningStats(stats) {
+        // Öğrenme istatistiklerini güncelle
+        document.getElementById('totalCorrections').textContent = stats.totalCorrections;
+        document.getElementById('learnedWords').textContent = stats.learnedWords;
+        document.getElementById('learnedArtists').textContent = stats.learnedArtists;
+    }
+
+    showLearningSection() {
+        // Öğrenme bölümünü göster
+        document.getElementById('learningSection').classList.remove('hidden');
     }
 }
 
