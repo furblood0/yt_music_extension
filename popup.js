@@ -29,23 +29,7 @@ class YouTubeMusicOrganizer {
             this.exportData();
         });
 
-        // Geri bildirim butonu
-        document.getElementById('showFeedbackForm').addEventListener('click', () => {
-            this.showFeedbackModal();
-        });
 
-        // Modal butonları
-        document.getElementById('closeFeedbackModal').addEventListener('click', () => {
-            this.hideFeedbackModal();
-        });
-
-        document.getElementById('cancelFeedback').addEventListener('click', () => {
-            this.hideFeedbackModal();
-        });
-
-        document.getElementById('saveFeedback').addEventListener('click', () => {
-            this.saveFeedbackData();
-        });
 
         // URL input değişikliğini dinle
         document.getElementById('playlistUrl').addEventListener('input', (e) => {
@@ -328,310 +312,27 @@ class YouTubeMusicOrganizer {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    // 🧠 Öğrenme Sistemi Metodları
-    showFeedbackModal() {
-        if (!this.songs || this.songs.length === 0) {
-            this.showStatus('Önce şarkıları çekmelisiniz!', 'error');
-            return;
-        }
 
-        if (!this.classifications || !this.classifications.byLanguage) {
-            this.showStatus('Dil sınıflandırması henüz yapılmamış!', 'error');
-            return;
-        }
 
-        this.populateFeedbackModal();
-        document.getElementById('feedbackModal').classList.remove('hidden');
-    }
 
-    hideFeedbackModal() {
-        document.getElementById('feedbackModal').classList.add('hidden');
-    }
 
-    populateFeedbackModal() {
-        const songListContainer = document.getElementById('feedbackSongList');
-        songListContainer.innerHTML = '';
 
-        // Tüm şarkıları birleştir
-        const allSongs = [
-            ...(this.classifications.byLanguage.Turkish || []),
-            ...(this.classifications.byLanguage.Other || [])
-        ];
 
-        allSongs.forEach((song, index) => {
-            const currentLanguage = this.classifications.byLanguage.Turkish?.some(s => s.title === song.title && s.artist === song.artist) ? 'Turkish' : 'Other';
-            
-            const songItem = document.createElement('div');
-            songItem.className = 'feedback-song-item';
-            songItem.innerHTML = `
-                <div class="song-title">${song.title}</div>
-                <div class="language-options">
-                    <div class="language-option">
-                        <input type="radio" id="turkish_${index}" name="language_${index}" value="Turkish" ${currentLanguage === 'Turkish' ? 'checked' : ''}>
-                        <label for="turkish_${index}">🇹🇷 Türkçe</label>
-                    </div>
-                    <div class="language-option">
-                        <input type="radio" id="other_${index}" name="language_${index}" value="Other" ${currentLanguage === 'Other' ? 'checked' : ''}>
-                        <label for="other_${index}">🌍 Diğer</label>
-                    </div>
-                </div>
-            `;
-            
-            songListContainer.appendChild(songItem);
-        });
-    }
 
-    async saveFeedbackData() {
-        try {
-            const songItems = document.querySelectorAll('.feedback-song-item');
-            const feedbackData = [];
 
-            songItems.forEach((item, index) => {
-                const title = item.querySelector('.song-title').textContent;
-                const selectedLanguage = item.querySelector(`input[name="language_${index}"]:checked`).value;
-                
-                // Sanatçı bilgisini classifications'dan bul
-                const songInfo = this.findSongInfo(title);
-                if (!songInfo) return; // Şarkı bulunamadıysa atla
-                
-                // Sadece değişen şarkıları ekle
-                const currentLanguage = this.classifications.byLanguage.Turkish?.some(s => s.title === title && s.artist === songInfo.artist) ? 'Turkish' : 'Other';
-                
-                if (selectedLanguage !== currentLanguage) {
-                    feedbackData.push({
-                        song: { title, artist: songInfo.artist },
-                        correctClassification: selectedLanguage,
-                        userClassification: currentLanguage
-                    });
-                }
-            });
 
-            if (feedbackData.length === 0) {
-                this.showStatus('Hiçbir değişiklik yapılmadı!', 'info');
-                this.hideFeedbackModal();
-                return;
-            }
 
-            // Her feedback'i gönder
-            for (const feedback of feedbackData) {
-                await this.submitFeedback(feedback);
-            }
 
-            this.showStatus(`${feedbackData.length} düzeltme kaydedildi! Sistem öğrendi. 🧠`, 'success');
-            this.hideFeedbackModal();
-            
-            // İstatistikleri güncelle
-            this.updateLearningStatsFromResponse();
-            
-        } catch (error) {
-            console.error('Feedback kaydetme hatası:', error);
-            this.showStatus('Düzeltmeler kaydedilemedi.', 'error');
-        }
-    }
 
-    async submitFeedback(feedback) {
-        try {
-            const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    action: 'feedback',
-                    data: feedback
-                })
-            });
+    
 
-            if (!response.ok) {
-                throw new Error('Feedback gönderilemedi');
-            }
 
-            return await response.json();
-        } catch (error) {
-            console.error('Feedback hatası:', error);
-            throw error;
-        }
-    }
 
-    async updateLearningStatsFromResponse() {
-        try {
-            const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    action: 'getStats'
-                })
-            });
 
-            if (response.ok) {
-                const stats = await response.json();
-                this.updateLearningStats(stats);
-            }
-        } catch (error) {
-            console.error('İstatistik güncelleme hatası:', error);
-        }
-    }
 
-    async viewLearningStats() {
-        try {
-            const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    action: 'getStats'
-                })
-            });
 
-            if (response.ok) {
-                const stats = await response.json();
-                this.showLearningStatsModal(stats);
-            } else {
-                throw new Error('İstatistikler alınamadı');
-            }
-        } catch (error) {
-            console.error('İstatistik hatası:', error);
-            this.showStatus('Öğrenme istatistikleri alınamadı.', 'error');
-        }
-    }
 
-    showLearningStatsModal(stats) {
-        const modal = document.createElement('div');
-        modal.className = 'learning-stats-modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <h3>🧠 Öğrenme İstatistikleri</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">Toplam Düzeltme</span>
-                        <span class="stat-value">${stats.totalCorrections}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Öğrenilen Kelime</span>
-                        <span class="stat-value">${stats.learnedWords.turkish.length + stats.learnedWords.foreign.length}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Öğrenilen Sanatçı</span>
-                        <span class="stat-value">${stats.learnedArtists.turkish.length + stats.learnedArtists.foreign.length}</span>
-                    </div>
-                </div>
-                <div class="weights-section">
-                    <h4>📊 Dinamik Ağırlıklar</h4>
-                    <div class="weight-item">
-                        <span>Karakter:</span> <span>${stats.weights.character}</span>
-                    </div>
-                    <div class="weight-item">
-                        <span>Kelime:</span> <span>${stats.weights.word}</span>
-                    </div>
-                    <div class="weight-item">
-                        <span>Sanatçı:</span> <span>${stats.weights.artist}</span>
-                    </div>
-                    <div class="weight-item">
-                        <span>Pattern:</span> <span>${stats.weights.pattern}</span>
-                    </div>
-                </div>
-                <button class="btn btn-primary" onclick="this.parentElement.parentElement.remove()">Kapat</button>
-            </div>
-        `;
 
-        // Modal stillerini ekle
-        const style = document.createElement('style');
-        style.textContent = `
-            .learning-stats-modal {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.8);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 1000;
-            }
-            .modal-content {
-                background: white;
-                padding: 30px;
-                border-radius: 16px;
-                max-width: 500px;
-                width: 90%;
-                text-align: center;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            }
-            .stats-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 20px;
-                margin: 20px 0;
-            }
-            .weights-section {
-                margin: 20px 0;
-                padding: 20px;
-                background: #f8f9fa;
-                border-radius: 12px;
-            }
-            .weight-item {
-                display: flex;
-                justify-content: space-between;
-                padding: 8px 0;
-                border-bottom: 1px solid #dee2e6;
-            }
-        `;
-        document.head.appendChild(style);
-        document.body.appendChild(modal);
-    }
-
-    updateLearningStats(stats) {
-        // Öğrenme istatistiklerini güncelle
-        document.getElementById('totalCorrections').textContent = stats.totalCorrections || 0;
-        document.getElementById('learnedWords').textContent = stats.learnedWords || 0;
-        document.getElementById('learnedArtists').textContent = stats.learnedArtists || 0;
-        
-        // Son güncelleme zamanını göster
-        if (stats.lastUpdated) {
-            const lastUpdated = new Date(stats.lastUpdated);
-            const now = new Date();
-            const diffInMinutes = Math.floor((now - lastUpdated) / (1000 * 60));
-            
-            let timeText;
-            if (diffInMinutes < 1) {
-                timeText = 'Az önce';
-            } else if (diffInMinutes < 60) {
-                timeText = `${diffInMinutes} dk önce`;
-            } else if (diffInMinutes < 1440) {
-                const hours = Math.floor(diffInMinutes / 60);
-                timeText = `${hours} saat önce`;
-            } else {
-                const days = Math.floor(diffInMinutes / 1440);
-                timeText = `${days} gün önce`;
-            }
-            
-            document.getElementById('lastUpdated').textContent = timeText;
-        } else {
-            document.getElementById('lastUpdated').textContent = '-';
-        }
-    }
-
-    showLearningSection() {
-        // Geri bildirim bölümünü göster
-        document.getElementById('learningSection').classList.remove('hidden');
-    }
-
-    // Şarkı bilgisini classifications'dan bul
-    findSongInfo(title) {
-        // Önce Turkish listesinde ara
-        const turkishSong = this.classifications.byLanguage.Turkish?.find(s => s.title === title);
-        if (turkishSong) return turkishSong;
-        
-        // Sonra Other listesinde ara
-        const otherSong = this.classifications.byLanguage.Other?.find(s => s.title === title);
-        if (otherSong) return otherSong;
-        
-        return null; // Şarkı bulunamadı
-    }
 }
 
 // Extension yüklendiğinde başlat

@@ -61,22 +61,17 @@ class YouTubeMusicScraper {
             // Genre bazlı sınıflandırma yap
             const genreClassifications = await this.classifyByGenre();
             
-            // Dil bazlı sınıflandırma yap
-            const languageClassifications = await this.classifyByLanguage();
             
             // Tüm sınıflandırmaları birleştir
             const classifications = {
                 byArtist: artistClassifications.byArtist,
                 byGenre: genreClassifications.byGenre,
-                byLanguage: languageClassifications.byLanguage,
                 totalSongs: this.songs.length,
                 totalArtists: artistClassifications.totalArtists,
                 totalGenres: genreClassifications.totalGenres,
-                totalTurkish: languageClassifications.totalTurkish,
-                totalOther: languageClassifications.totalOther,
                 artistList: artistClassifications.artistList,
                 genreList: genreClassifications.genreList,
-                languageList: languageClassifications.languageList
+
             };
             
             return {
@@ -623,119 +618,7 @@ async classifyByGenre() {
     }
 }
 
-async classifyByLanguage() {
-    try {
-        // Netlify function'a şarkıları gönder
-        const response = await fetch('https://yt-music-extension.netlify.app/.netlify/functions/smart-language-learner', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                action: 'detect',
-                data: {
-                    songs: this.songs.map(song => ({
-                        title: song.title,
-                        artist: song.artist
-                    }))
-                }
-            })
-        });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        if (!data.results || !Array.isArray(data.results)) {
-            throw new Error('Invalid response format');
-        }
-
-        // Dil gruplarına göre grupla
-        const languageGroups = {
-            'Turkish': [],
-            'Other': []
-        };
-
-        let totalTurkish = 0;
-        let totalOther = 0;
-
-        data.results.forEach(song => {
-            const isTurkish = song.isTurkish;
-            const language = isTurkish ? 'Turkish' : 'Other';
-            const confidence = song.confidence || 'medium';
-            const turkishScore = song.turkishScore || 0;
-            const patterns = song.patterns || [];
-            
-            if (isTurkish) {
-                totalTurkish++;
-            } else {
-                totalOther++;
-            }
-            
-            // Orijinal şarkı bilgilerini bul
-            const originalSong = this.songs.find(s => 
-                s.title === song.title && s.artist === song.artist
-            );
-            
-            if (originalSong) {
-                languageGroups[language].push({
-                    title: originalSong.title,
-                    artist: originalSong.artist,
-                    duration: originalSong.duration,
-                    videoId: originalSong.videoId,
-                    thumbnailUrl: originalSong.thumbnailUrl,
-                    timestamp: originalSong.timestamp,
-                    confidence: confidence,
-                    turkishScore: turkishScore,
-                    patterns: patterns
-                });
-            }
-        });
-
-        // Sonuçları güven seviyesine göre sırala (yüksek güvenilirlik önce)
-        Object.keys(languageGroups).forEach(lang => {
-            languageGroups[lang].sort((a, b) => {
-                const confidenceOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-                return confidenceOrder[b.confidence] - confidenceOrder[a.confidence];
-            });
-        });
-
-        return {
-            byLanguage: languageGroups,
-            totalTurkish: totalTurkish,
-            totalOther: totalOther,
-            totalLanguages: 2,
-            languageList: ['Turkish', 'Other'],
-            learningStats: data.learningStats || null
-        };
-
-    } catch (error) {
-        console.error('Dil sınıflandırma hatası:', error);
-        
-        // Hata durumunda basit fallback
-        return {
-            byLanguage: {
-                'Turkish': [],
-                'Other': this.songs.map(song => ({
-                    title: song.title,
-                    artist: song.artist,
-                    duration: song.duration,
-                    videoId: song.videoId,
-                    thumbnailUrl: song.thumbnailUrl,
-                    timestamp: song.timestamp,
-                    confidence: 'low',
-                    turkishScore: 0
-                }))
-            },
-            totalTurkish: 0,
-            totalOther: this.songs.length,
-            totalLanguages: 2,
-            languageList: ['Turkish', 'Other']
-        };
-    }
-}
 
 
 }
