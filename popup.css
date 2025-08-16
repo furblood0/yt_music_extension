@@ -153,6 +153,12 @@ body {
     font-style: italic;
 }
 
+.help-text.warning {
+    color: #e74c3c;
+    font-weight: 500;
+    font-style: normal;
+}
+
 .controls {
     padding: 24px 20px;
     display: flex;

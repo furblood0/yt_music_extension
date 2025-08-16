@@ -1,9 +1,45 @@
+class ErrorLogger {
+    constructor() {
+        this.errors = [];
+        this.maxErrors = 50;
+    }
+
+    logError(error, context, severity = 'error') {
+        const errorLog = {
+            timestamp: new Date().toISOString(),
+            type: error.name || 'UnknownError',
+            message: error.message,
+            context: context,
+            severity: severity
+        };
+        
+        // Console'da organize şekilde göster
+        console.group(` ${errorLog.type} [${errorLog.context}]`);
+        console.error('Message:', errorLog.message);
+        console.error('Context:', errorLog.context);
+        console.error('Time:', errorLog.timestamp);
+        if (error.stack) {
+            console.error('Stack:', error.stack);
+        }
+        console.groupEnd();
+        
+        // Error listesine ekle (sadece memory için)
+        this.errors.push(errorLog);
+        if (this.errors.length > this.maxErrors) {
+            this.errors.shift();
+        }
+        
+        return errorLog;
+    }
+}
+
 class YouTubeMusicOrganizer {
     constructor() {
         this.songs = [];
         this.classifications = null;
         this.currentPlaylistUrl = '';
         this.isProcessing = false;
+        this.errorLogger = new ErrorLogger();
         this.loadingSteps = [
             'Sayfa yükleniyor...',
             'Oynatma listesi analiz ediliyor...',
@@ -28,8 +64,6 @@ class YouTubeMusicOrganizer {
         document.getElementById('exportData').addEventListener('click', () => {
             this.exportData();
         });
-
-
 
         // URL input değişikliğini dinle
         document.getElementById('playlistUrl').addEventListener('input', (e) => {
@@ -78,7 +112,7 @@ class YouTubeMusicOrganizer {
                 document.getElementById('playlistUrl').value = tab.url;
             }
         } catch (error) {
-            console.error('Tab kontrolü hatası:', error);
+            this.errorLogger.logError(error, 'checkCurrentTab', 'warning');
         }
     }
 
@@ -158,7 +192,16 @@ class YouTubeMusicOrganizer {
                 await this.sleep(500);
                 
                 this.showResults();
-                this.showStatus(`${this.songs.length} şarkı başarıyla getirildi!`, 'success');
+                
+                // Şarkı sayısı bilgisini göster
+                let statusMessage = `✅ ${response.count} şarkı başarıyla getirildi!`;
+                
+                if (response.limitReached) {
+                    statusMessage += `\n⚠️ Sadece ilk 100 şarkı işlendi.`;
+                    statusMessage += `\n💡 Daha küçük oynatma listeleri kullanmanızı öneririz.`;
+                }
+                
+                this.showStatus(statusMessage, response.limitReached ? 'warning' : 'success');
             } else {
                 this.showStatus('Şarkılar getirilemedi: ' + response.error, 'error');
             }
@@ -178,17 +221,10 @@ class YouTubeMusicOrganizer {
         // Basit istatistikleri göster
         document.getElementById('totalSongs').textContent = this.songs.length;
         document.getElementById('totalArtists').textContent = this.getUniqueArtistsCount();
+
         
         stats.classList.remove('hidden');
         exportBtn.disabled = false;
-        
-        // Öğrenme bölümünü göster
-        this.showLearningSection();
-        
-        // Öğrenme istatistiklerini güncelle
-        if (this.classifications && this.classifications.learningStats) {
-            this.updateLearningStats(this.classifications.learningStats);
-        }
         
         // Stats animasyonu ekle
         this.animateStats();
@@ -207,8 +243,14 @@ class YouTubeMusicOrganizer {
     getUniqueArtistsCount() {
         const artists = new Set();
         this.songs.forEach(song => {
-            if (song.artist && song.artist !== 'Bilinmeyen Sanatçı') {
-                artists.add(song.artist);
+            if (song.artists && Array.isArray(song.artists)) {
+                song.artists.forEach(artist => {
+                    if (artist && artist !== 'Bilinmeyen Sanatçı') {
+                        artists.add(artist);
+                    }
+                });
+            } else if (song.mainArtist && song.mainArtist !== 'Bilinmeyen Sanatçı') {
+                artists.add(song.mainArtist);
             }
         });
         return artists.size;
@@ -274,6 +316,8 @@ class YouTubeMusicOrganizer {
         }
     }
 
+
+
     showStatus(message, type = 'info') {
         const status = document.getElementById('status');
         
@@ -311,28 +355,6 @@ class YouTubeMusicOrganizer {
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
 }
 
 // Extension yüklendiğinde başlat

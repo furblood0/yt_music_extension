@@ -1,8 +1,56 @@
+class ErrorLogger {
+    constructor() {
+        this.errors = [];
+        this.maxErrors = 100;
+    }
+
+    logError(error, context, severity = 'error') {
+        const errorLog = {
+            timestamp: new Date().toISOString(),
+            type: error.name || 'UnknownError',
+            message: error.message,
+            context: context,
+            severity: severity
+        };
+        
+        // Console'da organize şekilde göster
+        const emoji = this.getSeverityEmoji(severity);
+        const contextStr = context ? `[${context}]` : '';
+        
+        console.group(`${emoji} ${errorLog.type} ${contextStr}`);
+        console.error('Message:', errorLog.message);
+        console.error('Context:', errorLog.context);
+        console.error('Time:', errorLog.timestamp);
+        if (error.stack) {
+            console.error('Stack:', error.stack);
+        }
+        console.groupEnd();
+        
+        // Error listesine ekle (sadece memory için)
+        this.errors.push(errorLog);
+        if (this.errors.length > this.maxErrors) {
+            this.errors.shift();
+        }
+        
+        return errorLog;
+    }
+
+    getSeverityEmoji(severity) {
+        switch (severity) {
+            case 'error': return '';
+            case 'warning': return '⚠️';
+            case 'info': return 'ℹ️';
+            default: return '❓';
+        }
+    }
+}
+
 class YouTubeMusicScraper {
     constructor() {
         this.songs = [];
         this.isScraping = false;
         this.lastSongCount = 0;
+        this.errorLogger = new ErrorLogger();
         this.init();
     }
 
@@ -55,6 +103,10 @@ class YouTubeMusicScraper {
             // Şarkıları çek
             await this.scrapeSongs();
             
+            // Toplam şarkı sayısını kontrol et
+            const totalSongsInPlaylist = this.findSongElements().length;
+            const processedSongs = this.songs.length;
+            
             // Sanatçı bazlı sınıflandırma yap
             const artistClassifications = this.classifyByArtist();
             
@@ -78,12 +130,15 @@ class YouTubeMusicScraper {
                 success: true,
                 songs: this.songs,
                 count: this.songs.length,
+                totalSongsInPlaylist: totalSongsInPlaylist,
+                processedSongs: processedSongs,
+                limitReached: totalSongsInPlaylist > 100,
                 playlistUrl: playlistUrl,
                 classifications: classifications
             };
 
         } catch (error) {
-            console.error('Şarkı çekme hatası:', error);
+            this.errorLogger.logError(error, 'fetchPlaylistSongs', 'error');
             return {
                 success: false,
                 error: 'Şarkılar çekilirken bir hata oluştu: ' + error.message
@@ -153,11 +208,12 @@ class YouTubeMusicScraper {
             throw new Error('Şarkı elementleri bulunamadı. Sayfayı yenileyip tekrar deneyin.');
         }
 
-        // Her şarkı için bilgileri çek
+                // Her şarkı için bilgileri çek (maksimum 100)
         let validSongs = 0;
         let invalidSongs = 0;
+        const maxSongs = 100;
         
-        for (let i = 0; i < songElements.length; i++) {
+        for (let i = 0; i < Math.min(songElements.length, maxSongs); i++) {
             const songElement = songElements[i];
             
             try {
@@ -169,6 +225,7 @@ class YouTubeMusicScraper {
                     invalidSongs++;
                 }
             } catch (error) {
+                this.errorLogger.logError(error, `extractSongInfo_${i}`, 'warning');
                 invalidSongs++;
             }
 
@@ -176,6 +233,11 @@ class YouTubeMusicScraper {
             if (i % 20 === 0) {
                 await this.sleep(10);
             }
+        }
+        
+        // Eğer 100'den fazla şarkı varsa uyarı ver
+        if (songElements.length > maxSongs) {
+            console.warn(`⚠️ Oynatma listesinde ${songElements.length} şarkı var, sadece ilk ${maxSongs} tanesi işlendi.`);
         }
     }
 
@@ -186,6 +248,7 @@ class YouTubeMusicScraper {
         const maxScrollAttempts = 50;
         let noNewSongsCount = 0;
         const maxNoNewSongs = 5;
+        const maxSongs = 100; // Maksimum şarkı sayısı
         
         while (scrollAttempts < maxScrollAttempts) {
             // Sayfanın en altına kaydır
@@ -196,6 +259,12 @@ class YouTubeMusicScraper {
             
             // Yüklenen şarkı sayısını kontrol et
             const currentSongCount = this.findSongElements().length;
+            
+            // 100 şarkıya ulaştıysak dur
+            if (currentSongCount >= maxSongs) {
+                console.log(`🎯 Maksimum şarkı sayısına ulaşıldı: ${maxSongs}`);
+                break;
+            }
             
             // Eğer yeni şarkı yüklenmediyse sayacı artır
             if (currentSongCount === this.lastSongCount) {
@@ -383,7 +452,7 @@ class YouTubeMusicScraper {
                 }
             }
 
-            // Sanatçı adı
+            // Sanatçı adları (array olarak)
             const artistSelectors = [
                 '.subtitle',
                 '[data-testid="artist"]',
@@ -395,11 +464,13 @@ class YouTubeMusicScraper {
                 '.flex-column yt-formatted-string:nth-child(2)'
             ];
 
-            let artist = '';
+            let artists = [];
             for (const selector of artistSelectors) {
                 const artistElement = element.querySelector(selector);
                 if (artistElement && artistElement.textContent.trim()) {
-                    artist = artistElement.textContent.trim();
+                    const artistText = artistElement.textContent.trim();
+                    // Sanatçıları ayır (feat., &, vs. gibi ayırıcılar ile)
+                    artists = this.parseArtists(artistText);
                     break;
                 }
             }
@@ -441,7 +512,7 @@ class YouTubeMusicScraper {
             }
 
             // Eğer selector'lar ile bulunamadıysa, text parsing yap
-            if (!title || !artist) {
+            if (!title || artists.length === 0) {
                 const allText = element.textContent || '';
                 const lines = allText.split('\n').filter(line => line.trim());
                 
@@ -457,8 +528,9 @@ class YouTubeMusicScraper {
                 }
                 
                 // İkinci satır genellikle sanatçı
-                if (lines.length >= 2 && !artist) {
-                    artist = lines[1].trim();
+                if (lines.length >= 2 && artists.length === 0) {
+                    const artistText = lines[1].trim();
+                    artists = this.parseArtists(artistText);
                 }
             }
 
@@ -467,14 +539,15 @@ class YouTubeMusicScraper {
                 return null;
             }
 
-            // Sanatçı adını temizle
-            if (artist) {
-                artist = artist.replace(/^by\s+/i, '').trim();
+            // Sanatçıları temizle
+            if (artists.length > 0) {
+                artists = artists.map(artist => artist.replace(/^by\s+/i, '').trim());
             }
 
             return {
                 title: title,
-                artist: artist || 'Bilinmeyen Sanatçı',
+                artists: artists.length > 0 ? artists : ['Bilinmeyen Sanatçı'],
+                mainArtist: artists.length > 0 ? artists[0] : 'Bilinmeyen Sanatçı',
                 duration: duration,
                 videoId: videoId || null,
                 thumbnailUrl: thumbnailUrl || null,
@@ -482,8 +555,48 @@ class YouTubeMusicScraper {
             };
 
         } catch (error) {
+            this.errorLogger.logError(error, 'extractSongInfo', 'warning');
             return null;
         }
+    }
+
+    parseArtists(artistText) {
+        if (!artistText) return [];
+        
+        // Yaygın ayırıcıları kullanarak sanatçıları ayır
+        const separators = [
+            /\s+feat\.?\s+/i,      // feat. veya feat
+            /\s+ft\.?\s+/i,        // ft. veya ft
+            /\s+featuring\s+/i,    // featuring
+            /\s*&\s*/,             // &
+            /\s*,\s*/,             // virgül
+            /\s+vs\.?\s+/i,        // vs. veya vs
+            /\s+x\s+/i,            // x (collaboration)
+            /\s*\+\s*/             // +
+        ];
+        
+        let artists = [artistText];
+        
+        // Her ayırıcıyı dene
+        for (const separator of separators) {
+            if (separator.test(artistText)) {
+                artists = artistText.split(separator)
+                    .map(artist => artist.trim())
+                    .filter(artist => artist.length > 0);
+                break;
+            }
+        }
+        
+        // Sanatçı adlarını temizle
+        artists = artists.map(artist => {
+            // Parantez içindeki ek bilgileri kaldır
+            artist = artist.replace(/\([^)]*\)/g, '').trim();
+            // Fazla boşlukları temizle
+            artist = artist.replace(/\s+/g, ' ').trim();
+            return artist;
+        }).filter(artist => artist.length > 0);
+        
+        return artists.length > 0 ? artists : [artistText];
     }
 
     sleep(ms) {
@@ -494,22 +607,28 @@ class YouTubeMusicScraper {
         const artistGroups = {};
         let totalSongs = 0;
         let totalArtists = 0;
+        const allArtists = new Set();
 
         // Şarkıları sanatçıya göre grupla
         this.songs.forEach(song => {
-            const artist = song.artist || 'Bilinmeyen Sanatçı';
+            const artists = song.artists || [song.mainArtist || 'Bilinmeyen Sanatçı'];
             
-            if (!artistGroups[artist]) {
-                artistGroups[artist] = [];
-                totalArtists++;
-            }
-            
-            artistGroups[artist].push({
-                title: song.title,
-                duration: song.duration,
-                videoId: song.videoId,
-                thumbnailUrl: song.thumbnailUrl,
-                timestamp: song.timestamp
+            // Her sanatçı için ayrı grup oluştur
+            artists.forEach(artist => {
+                if (!artistGroups[artist]) {
+                    artistGroups[artist] = [];
+                    totalArtists++;
+                }
+                
+                artistGroups[artist].push({
+                    title: song.title,
+                    duration: song.duration,
+                    videoId: song.videoId,
+                    thumbnailUrl: song.thumbnailUrl,
+                    timestamp: song.timestamp
+                });
+                
+                allArtists.add(artist);
             });
             
             totalSongs++;
@@ -546,7 +665,7 @@ async classifyByGenre() {
             body: JSON.stringify({
                 songs: this.songs.map(song => ({
                     title: song.title,
-                    artist: song.artist
+                    artist: song.mainArtist || song.artists?.[0] || 'Bilinmeyen Sanatçı'
                 }))
             })
         });
@@ -573,15 +692,18 @@ async classifyByGenre() {
                 totalGenres++;
             }
             
-            // Orijinal şarkı bilgilerini bul
+            // Orijinal şarkı bilgilerini bul - yeni array yapısına uygun
             const originalSong = this.songs.find(s => 
-                s.title === song.title && s.artist === song.artist
+                s.title === song.title && 
+                (s.mainArtist === song.artist || 
+                 (s.artists && s.artists.includes(song.artist)))
             );
             
             if (originalSong) {
                 genreGroups[genre].push({
                     title: originalSong.title,
-                    artist: originalSong.artist,
+                    artists: originalSong.artists || [originalSong.mainArtist || 'Bilinmeyen Sanatçı'],
+                    mainArtist: originalSong.mainArtist || originalSong.artists?.[0] || 'Bilinmeyen Sanatçı',
                     duration: originalSong.duration,
                     videoId: originalSong.videoId,
                     thumbnailUrl: originalSong.thumbnailUrl,
@@ -607,15 +729,15 @@ async classifyByGenre() {
             genreList: sortedGenres
         };
 
-    } catch (error) {
-        console.error('Genre sınıflandırma hatası:', error);
-        return {
-            byGenre: {},
-            totalGenres: 0,
-            genreList: [],
-            error: error.message
-        };
-    }
+            } catch (error) {
+            this.errorLogger.logError(error, 'classifyByGenre', 'error');
+            return {
+                byGenre: {},
+                totalGenres: 0,
+                genreList: [],
+                error: error.message
+            };
+        }
 }
 
 
